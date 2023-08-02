@@ -21,13 +21,13 @@ cp -u $0 $outdir/
 
 python $pyscript \
     --output=$outdir/results.h5 \
-    --ncpus=8 \
+    --ncpus=$SLURM_CPUS_PER_TASK \
     --width=500 \
     --height=500 \
-    --radius=100 \
+    --radius=50 \
     --lambda_=200 \
     --xi=10 \
-    --currents 300 400 30 \
+    --currents 550 650 30 \
     --fields 0 30 7 \
     --solve-time=700 \
     --eval-time=200

@@ -34,7 +34,7 @@ def make_device(
 
     holes = None
     if hole_radius:
-        holes = [tdgl.Polygon("hole", points=circle(hole_radius, points=401))]
+        holes = [tdgl.Polygon("hole", points=circle(hole_radius, points=int(4 * hole_radius)))]
 
     device = tdgl.Device(
         "bridge",
