@@ -142,6 +142,8 @@ if __name__ == "__main__":
 
     with h5py.File(args.output, "x", track_order=True) as h5file:
         device.to_hdf5(h5file.create_group("device"))
+        h5file["fields"] = fields
+        h5file["currents"] = currents
         for k, v in device_kwargs.items():
             h5file.attrs[k] = v
         h5file.attrs["ncpus"] = ncpus
@@ -158,7 +160,7 @@ if __name__ == "__main__":
             )
             results = pool.map(func, currents)
 
-        with h5py.File(args.output, "a") as f:
+        with h5py.File(args.output, "a", track_order=True) as f:
             grp = f.require_group(str(i))
             grp.attrs["field"] = field
             voltages = []

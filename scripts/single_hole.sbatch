@@ -24,10 +24,10 @@ python $pyscript \
     --ncpus=$SLURM_CPUS_PER_TASK \
     --width=500 \
     --height=500 \
-    --radius=50 \
+    --radius=25 \
     --lambda_=200 \
     --xi=10 \
-    --currents 550 650 30 \
+    --currents 400 600 30 \
     --fields 0 30 7 \
     --solve-time=700 \
     --eval-time=200
