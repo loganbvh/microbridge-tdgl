@@ -7,7 +7,6 @@ os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
 import h5py
-import joblib
 import numpy as np
 import tdgl
 from tdgl.geometry import box, circle
@@ -37,9 +36,8 @@ def make_device(
     holes = None
     if hole_radius:
         hole_points = int(4 * hole_radius)
-        holes = [
-            tdgl.Polygon("hole", points=circle(hole_radius, points=int(hole_points)))
-        ]
+        hole = tdgl.Polygon("hole", points=circle(hole_radius, points=int(hole_points)))
+        holes = [hole]
 
     device = tdgl.Device(
         "bridge",
@@ -86,19 +84,16 @@ if __name__ == "__main__":
         "--max-edge-length", type=float, default=None, help="Max edge length in nm"
     )
     parser.add_argument(
-        "--ncpus", type=int, default=None, help="Number of processes to use"
-    )
-    parser.add_argument(
         "--currents",
         type=float,
         nargs=3,
-        help="Current (start, stop, num_points) in uA",
+        help="Current (start, stop, npoints) in uA",
     )
+    parser.add_argument("--index", type=int, help="Index into currents.")
     parser.add_argument(
-        "--fields",
+        "--field",
         type=float,
-        nargs=3,
-        help="Applied field (start, stop, num_points) in mT",
+        help="Applied field in mT",
     )
     parser.add_argument(
         "--solve-time", type=float, default=700, help="Total solve time"
@@ -112,15 +107,10 @@ if __name__ == "__main__":
 
     start, stop, npoints = args.currents
     currents = np.linspace(start, stop, int(npoints))
+    index = int(args.index)
+    current = currents[index]
 
-    start, stop, npoints = args.fields
-    fields = np.linspace(start, stop, int(npoints))
-
-    avail_cpus = joblib.cpu_count(only_physical_cores=True)
-    ncpus = args.ncpus
-    if ncpus is None:
-        ncpus = avail_cpus
-    ncpus = min(ncpus, avail_cpus)
+    field = float(args.field)
 
     max_edge_length = args.max_edge_length
     if max_edge_length is None:
@@ -145,37 +135,24 @@ if __name__ == "__main__":
         field_units="mT",
     )
 
-    with h5py.File(args.output, "x", track_order=True) as h5file:
-        device.to_hdf5(h5file.create_group("device"))
-        h5file["fields"] = fields
+    with h5py.File(args.output, "x") as h5file:
+        if index == 0:
+            device.to_hdf5(h5file.create_group("device"))
+        h5file["field"] = field
         h5file["currents"] = currents
+        h5file["index"] = index
+        h5file["current"] = current
         for k, v in device_kwargs.items():
             h5file.attrs[k] = v
-        h5file.attrs["ncpus"] = ncpus
         opt_grp = h5file.create_group("options")
         for k, v in dataclasses.asdict(options).items():
             if v is not None:
                 opt_grp.attrs["k"] = v
 
-    for i, field in enumerate(fields):
-        print(f"{i}: {field:.5f} mT")
-        with mp.Pool(processes=ncpus) as pool:
-            func = partial(
-                get_dynamics, device=device, options=options, applied_field=field
-            )
-            results = pool.map(func, currents)
-
-        with h5py.File(args.output, "a", track_order=True) as f:
-            grp = f.require_group(str(i))
-            grp.attrs["field"] = field
-            voltages = []
-            for j, (result, current) in enumerate(zip(results, currents)):
-                vmean = result.mean_voltage(tmin=(args.solve_time - args.eval_time))
-                voltages.append(vmean)
-                subgrp = grp.create_group(str(j))
-                subgrp.attrs["current"] = current
-                result.to_hdf5(subgrp)
-            voltages = np.array(voltages)
-            grp["voltage"] = voltages
-            print(currents)
-            print(voltages)
+        dynamics = get_dynamics(
+            current, device=device, options=options, applied_field=field
+        )
+        voltage = dynamics.mean_voltage(tmin=(args.solve_time - args.eval_time))
+        h5file["voltage"] = voltage
+        dynamics.to_hdf5(h5file.create_group("dynamics"))
+        print(f"{index}: I = {current:.5f} uA, V = {voltage:.5f} V0")
