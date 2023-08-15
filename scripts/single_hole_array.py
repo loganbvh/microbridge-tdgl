@@ -35,7 +35,7 @@ def make_device(
 
     holes = None
     if hole_radius:
-        hole_points = int(4 * hole_radius)
+        hole_points = int(2 * np.pi * hole_radius)
         hole = tdgl.Polygon("hole", points=circle(hole_radius, points=int(hole_points)))
         holes = [hole]
 
